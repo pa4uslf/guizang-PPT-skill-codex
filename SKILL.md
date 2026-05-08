@@ -5,6 +5,19 @@ description: 生成"电子杂志 × 电子墨水"风格的横向翻页网页 PPT
 
 # Magazine Web Ppt
 
+## Codex 快速执行规则
+
+这是一套**效果很好的网页 PPT 制作技能**，但不是通用商务 PPT 生成器。Codex 执行时先按下面的硬规则做，细节再查 `references/`。
+
+- 主题只允许 5 套：墨水经典、靛蓝瓷、森林墨、牛皮纸、沙丘。
+- 每套主题只是 6 个 CSS 变量的不同取值；切换主题只替换 `:root` 里的 `--ink` / `--ink-rgb` / `--paper` / `--paper-rgb` / `--paper-tint` / `--ink-tint`。
+- 新建 deck 优先用 `scripts/new-deck "标题" ./output/my-deck --theme ink`，不要手工复制漏改 `<title>`。
+- 图片放在和 `index.html` 同级的 `images/` 文件夹。
+- 图片命名必须清晰可排序：`{补零页号}-{英文语义}.{ext}`，例如 `01-cover.jpg`；是 `01` 不是 `1`，是 `cover` 不是 `fengmian`。
+- 照片用 JPG；截图、带文字图片、UI 画面优先 PNG。
+- 单张图建议 >= 1600px 宽，避免大屏投影发糊。
+- 交付前必须跑 `scripts/validate-deck ./path/to/index.html`，并汇报 error / warning。
+
 ## 这个 Skill 做什么
 
 生成一份**单文件 HTML**的横向翻页 PPT，视觉基调是：
@@ -89,7 +102,7 @@ description: 生成"电子杂志 × 电子墨水"风格的横向翻页网页 PPT
 
 #### Codex 配图生成(可选)
 
-如果当前运行环境是 **Codex**,完成 deck 初稿后,主动问用户是否需要用 GPT-M 2.0 生成配图并插入 PPT。不要默认生成。
+如果当前运行环境是 **Codex**,且当前会话暴露了图片生成能力,完成 deck 初稿后,主动问用户是否需要生成配图并插入 PPT。不要默认生成。
 
 推荐询问方式:
 
@@ -108,14 +121,22 @@ description: 生成"电子杂志 × 电子墨水"风格的横向翻页网页 PPT
 
 ### Step 2 · 拷贝模板
 
-从 `assets/template.html` 拷贝一份到目标位置（通常是 `项目/XXX/ppt/index.html`），同时在同级建一个 `images/` 文件夹准备接图片。
+优先用脚本创建 deck,它会拷贝模板、替换 `<title>`、套用主题并创建同级 `images/` 文件夹:
+
+```bash
+scripts/new-deck "PPT 标题" "项目/XXX/ppt" --theme ink
+```
+
+主题 key: `ink` / `indigo` / `forest` / `kraft` / `dune`。
+
+如果脚本不可用,再从 `assets/template.html` 手工拷贝一份到目标位置（通常是 `项目/XXX/ppt/index.html`），同时在同级建一个 `images/` 文件夹准备接图片。
 
 ```bash
 mkdir -p "项目/XXX/ppt/images"
 cp "<SKILL_ROOT>/assets/template.html" "项目/XXX/ppt/index.html"
 ```
 
-`template.html` 是一个**完整可运行**的文件——CSS、WebGL shader、翻页 JS、字体/图标 CDN 全已预设好，只有 `<main id="deck">` 里面是 3 个示例 slide（封面、章节幕封、空白填充页）。
+`template.html` 是一个**完整可运行**的种子文件——CSS、WebGL shader、翻页 JS、字体/图标 CDN 全已预设好。模板本体保留 `<!-- SLIDES_HERE -->` 插入位；`scripts/new-deck` 会自动注入 3 页可验证的 starter slides。
 
 #### 2.1 · 必改占位符（**容易漏**）
 
@@ -231,7 +252,15 @@ cp "<SKILL_ROOT>/assets/template.html" "项目/XXX/ppt/index.html"
 
 ### Step 5 · 本地预览
 
-直接在浏览器打开 `index.html` 就行。macOS 下：
+交付前先跑脚本验收:
+
+```bash
+scripts/validate-deck "项目/XXX/ppt/index.html"
+```
+
+如果有 `ERROR`,必须修完再交付；`WARN` 可以按影响说明保留或修复。
+
+然后直接在浏览器打开 `index.html` 就行。macOS 下：
 
 ```bash
 open "项目/XXX/ppt/index.html"
@@ -264,11 +293,13 @@ guizang-ppt-skill/
 **加载顺序建议**：
 1. 先读完 `SKILL.md`(这个文件)了解整体
 2. Step 1 需求澄清完成后,读 `themes.md` 帮用户选定一套主题色
-3. **动手前 Read `assets/template.html` 的 `<style>` 块**——这是类名的唯一来源,缺类会导致整页样式崩
-4. 读 `layouts.md` 挑布局(顶部有 Pre-flight 类名清单、主题节奏规划、动效 recipe 决策树)
-5. 如果在 Codex 中生成配图,读 `image-prompts.md` 挑图片类型、比例和基础提示词
-6. 细节调整时读 `components.md` 查组件(含 Motion 动效系统章节)
-7. 生成后读 `checklist.md` 自检(顶部 P0-0 规则强制预检 + 动效自检块)
+3. 用 `scripts/new-deck` 创建初始 deck；如果手工创建,必须改 `<title>` 并套主题
+4. **动手前 Read `assets/template.html` 的 `<style>` 块**——这是类名的唯一来源,缺类会导致整页样式崩
+5. 读 `layouts.md` 挑布局(顶部有 Pre-flight 类名清单、主题节奏规划、动效 recipe 决策树)
+6. 如果在 Codex 中生成配图,读 `image-prompts.md` 挑图片类型、比例和基础提示词
+7. 细节调整时读 `components.md` 查组件(含 Motion 动效系统章节)
+8. 生成后读 `checklist.md` 自检(顶部 P0-0 规则强制预检 + 动效自检块)
+9. 跑 `scripts/validate-deck <deck>/index.html` 做最终验收
 
 **动效相关**:模板已把 Motion One 的加载和 5 种 recipe 逻辑全部内嵌到 `template.html` 底部的 module script。你不需要改 JS,只需要按 `layouts.md` 的骨架在 HTML 里加 `data-anim` / `data-animate` 即可。离线演示靠 `assets/motion.min.js`,断网时自动降级为"无动画但内容可读"。
 

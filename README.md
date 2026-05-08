@@ -18,6 +18,19 @@
 - 🖼 **Codex 可选配图流程**:可用 GPT-M 2.0 生成纪实照片、信息图、流程图、系统关系图、UI 情景图,并按模板比例插入
 - 📄 **单文件 HTML**:不需要构建、不需要服务器,浏览器直接打开
 
+## Codex 最短路径
+
+```bash
+git clone https://github.com/op7418/guizang-ppt-skill.git ~/.codex/skills/guizang-ppt-skill
+cd ~/.codex/skills/guizang-ppt-skill
+scripts/new-deck "我的分享" ~/Desktop/my-deck --theme ink
+scripts/validate-deck ~/Desktop/my-deck/index.html
+```
+
+主题 key 只允许这 5 个：`ink` 墨水经典、`indigo` 靛蓝瓷、`forest` 森林墨、`kraft` 牛皮纸、`dune` 沙丘。
+
+图片必须放在和 `index.html` 同级的 `images/` 文件夹，命名用 `01-cover.jpg` 这种“补零页号 + 英文语义”的格式；照片用 JPG，截图或带文字图片用 PNG，单张建议 >= 1600px 宽。
+
 ## 适合 / 不适合
 
 **✅ 合适**:线下分享 / 行业内部讲话 / 私享会 / AI 产品发布 / demo day / 带强烈个人风格的演讲
@@ -26,13 +39,22 @@
 
 ## 安装
 
-### 方式一:一行命令安装(推荐)
+### 方式一:Codex 手动安装
+
+```bash
+git clone https://github.com/op7418/guizang-ppt-skill.git ~/.codex/skills/guizang-ppt-skill
+ls ~/.codex/skills/guizang-ppt-skill
+```
+
+应该能看到 `SKILL.md`、`assets/`、`references/`、`scripts/`。
+
+### 方式二:Claude Code 一行命令安装
 
 ```bash
 npx skills add https://github.com/op7418/guizang-ppt-skill --skill guizang-ppt-skill
 ```
 
-### 方式二:把下面这段话直接发给 AI
+### 方式三:把下面这段话直接发给 AI
 
 > 帮我安装 `guizang-ppt-skill` 这个 Claude Code skill。请按下面步骤做:
 >
@@ -43,7 +65,7 @@ npx skills add https://github.com/op7418/guizang-ppt-skill --skill guizang-ppt-s
 
 把这段话复制粘贴给 Claude Code / Cursor / 任何有 shell 权限的 AI Agent,它会自动完成安装。
 
-### 方式三:手动命令行
+### 方式四:Claude Code 手动命令行
 
 ```bash
 git clone https://github.com/op7418/guizang-ppt-skill.git ~/.claude/skills/guizang-ppt-skill
@@ -63,18 +85,19 @@ git clone https://github.com/op7418/guizang-ppt-skill.git ~/.claude/skills/guiza
 Skill 本身是结构化工作流,Agent 会逐步引导:
 
 1. **需求澄清** — 6 问清单:受众、时长、素材、图片、主题色、硬约束
-2. **拷贝模板** — `assets/template.html` → 项目目录,改 `<title>`,换主题色
+2. **创建 deck** — 优先用 `scripts/new-deck`,自动拷贝模板、改 `<title>`、换主题色
 3. **填充内容** — 从 10 种 layout 骨架里挑、粘、改文案(先做类名预检 + 主题节奏规划)
-4. **可选配图** — 在 Codex 中可询问是否用 GPT-M 2.0 生成配图,再按页面比例插入
+4. **可选配图** — 在 Codex 中可询问是否使用当前会话的图片生成能力,再按页面比例插入
 5. **自检** — 对照 `references/checklist.md`,P0 级问题必须全过
-6. **预览** — 浏览器直接打开
-7. **迭代** — inline style 改字号/高度/间距
+6. **脚本验收** — 跑 `scripts/validate-deck path/to/index.html`
+7. **预览** — 浏览器直接打开
+8. **迭代** — inline style 改字号/高度/间距
 
 详细说明见 [`SKILL.md`](./SKILL.md)。
 
 ## Codex 配图能力
 
-在 Codex 环境中,完成 deck 初稿后可以主动询问用户是否需要生成配图。用户确认后,再选择图片类型或风格,常用类型包括:
+在 Codex 环境中,如果当前会话可用图片生成能力,完成 deck 初稿后可以主动询问用户是否需要生成配图。用户确认后,再选择图片类型或风格,常用类型包括:
 
 - 人文纪实照片:富士 / 徕卡感的真实场景,增加人文表现力
 - 信息图 / 流程图 / 对比图 / 系统关系图:用于解释无法用实拍照片说明的概念
@@ -93,6 +116,9 @@ guizang-ppt-skill/
 ├── README.md             ← 本文件
 ├── assets/
 │   └── template.html     ← 完整可运行的种子 HTML(CSS + WebGL + 翻页 JS 全配好)
+├── scripts/
+│   ├── new-deck          ← 创建新 deck,替换 title 和主题
+│   └── validate-deck     ← 验收 title、主题 class、图片路径和命名
 └── references/
     ├── components.md     ← 组件手册(字体、色、网格、图标、callout、stat、pipeline)
     ├── layouts.md        ← 10 种页面布局骨架(可直接粘贴)
@@ -114,6 +140,12 @@ guizang-ppt-skill/
 | 🌙 沙丘 | 艺术 / 设计 / 创意 / 画廊 |
 
 切换主题只需替换 `template.html` 开头 `:root{}` 里的 6 行变量,其他 CSS 全走 `var(--...)`。
+
+也可以直接用脚本创建指定主题:
+
+```bash
+scripts/new-deck "标题" ./output/my-deck --theme indigo
+```
 
 ## 核心设计原则
 

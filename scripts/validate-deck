@@ -1,0 +1,218 @@
+#!/usr/bin/env python3
+"""Validate a generated Guizang-style web PPT deck."""
+
+from __future__ import annotations
+
+import argparse
+import re
+import struct
+import sys
+from html.parser import HTMLParser
+from pathlib import Path
+from urllib.parse import unquote, urlparse
+
+
+IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif"}
+IMAGE_NAME_RE = re.compile(r"^\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*\.(?:jpg|jpeg|png|webp|gif|avif)$", re.I)
+EMU_RE = re.compile(
+    "["
+    "\U0001f300-\U0001f5ff"
+    "\U0001f600-\U0001f64f"
+    "\U0001f680-\U0001f6ff"
+    "\U0001f700-\U0001f77f"
+    "\U0001f780-\U0001f7ff"
+    "\U0001f800-\U0001f8ff"
+    "\U0001f900-\U0001f9ff"
+    "\U0001fa00-\U0001fa6f"
+    "\U0001fa70-\U0001faff"
+    "\u2600-\u27bf"
+    "]"
+)
+
+
+class DeckParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.title_parts: list[str] = []
+        self.in_title = False
+        self.sections: list[str] = []
+        self.images: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attr = {name: value or "" for name, value in attrs}
+        if tag == "title":
+            self.in_title = True
+        if "slide" in attr.get("class", "").split():
+            self.sections.append(attr.get("class", ""))
+        if tag == "img" and attr.get("src"):
+            self.images.append(attr["src"])
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "title":
+            self.in_title = False
+
+    def handle_data(self, data: str) -> None:
+        if self.in_title:
+            self.title_parts.append(data)
+
+    @property
+    def title(self) -> str:
+        return "".join(self.title_parts).strip()
+
+
+def local_image_path(deck_dir: Path, src: str) -> Path | None:
+    parsed = urlparse(src)
+    if parsed.scheme or parsed.netloc or src.startswith("#"):
+        return None
+    return (deck_dir / unquote(parsed.path)).resolve()
+
+
+def png_size(path: Path) -> tuple[int, int] | None:
+    with path.open("rb") as fh:
+        header = fh.read(24)
+    if len(header) >= 24 and header.startswith(b"\x89PNG\r\n\x1a\n"):
+        return struct.unpack(">II", header[16:24])
+    return None
+
+
+def jpeg_size(path: Path) -> tuple[int, int] | None:
+    data = path.read_bytes()
+    if not data.startswith(b"\xff\xd8"):
+        return None
+    idx = 2
+    while idx < len(data) - 9:
+        if data[idx] != 0xFF:
+            idx += 1
+            continue
+        marker = data[idx + 1]
+        idx += 2
+        if marker in {0xD8, 0xD9}:
+            continue
+        if idx + 2 > len(data):
+            break
+        size = struct.unpack(">H", data[idx : idx + 2])[0]
+        if marker in {
+            0xC0,
+            0xC1,
+            0xC2,
+            0xC3,
+            0xC5,
+            0xC6,
+            0xC7,
+            0xC9,
+            0xCA,
+            0xCB,
+            0xCD,
+            0xCE,
+            0xCF,
+        }:
+            if idx + 7 > len(data):
+                break
+            height = struct.unpack(">H", data[idx + 3 : idx + 5])[0]
+            width = struct.unpack(">H", data[idx + 5 : idx + 7])[0]
+            return width, height
+        idx += size
+    return None
+
+
+def image_size(path: Path) -> tuple[int, int] | None:
+    suffix = path.suffix.lower()
+    try:
+        if suffix == ".png":
+            return png_size(path)
+        if suffix in {".jpg", ".jpeg"}:
+            return jpeg_size(path)
+    except OSError:
+        return None
+    return None
+
+
+def check_theme(classes: str) -> bool:
+    tokens = set(classes.split())
+    return "light" in tokens or "dark" in tokens
+
+
+def validate(index_path: Path) -> tuple[list[str], list[str]]:
+    errors: list[str] = []
+    warnings: list[str] = []
+    html = index_path.read_text(encoding="utf-8")
+    visible_html = re.sub(r"<!--.*?-->", "", html, flags=re.S)
+    visible_html = re.sub(r"/\*.*?\*/", "", visible_html, flags=re.S)
+    parser = DeckParser()
+    parser.feed(html)
+    deck_dir = index_path.parent
+
+    if not parser.title:
+        errors.append("missing <title>")
+    if "[必填]" in parser.title or "Deck Title" in parser.title:
+        errors.append(f"title still contains placeholder text: {parser.title}")
+
+    if not parser.sections:
+        errors.append("no element with class=\"slide ...\" found")
+    for idx, classes in enumerate(parser.sections, start=1):
+        if not check_theme(classes):
+            errors.append(f"slide {idx:02d} missing light/dark theme class: {classes}")
+        tokens = set(classes.split())
+        if "hero" in tokens and not ({"light", "dark"} & tokens):
+            errors.append(f"hero slide {idx:02d} missing hero light/hero dark pairing: {classes}")
+
+    images_dir = deck_dir / "images"
+    if not images_dir.exists():
+        warnings.append(f"images directory missing: {images_dir}")
+
+    referenced = []
+    for src in parser.images:
+        path = local_image_path(deck_dir, src)
+        if path is None:
+            warnings.append(f"external image not checked: {src}")
+            continue
+        referenced.append(path)
+        if not path.exists():
+            errors.append(f"missing referenced image: {src}")
+
+    for path in referenced:
+        if path.suffix.lower() not in IMAGE_EXTS:
+            warnings.append(f"unusual image extension: {path.name}")
+        if path.parent.name == "images" and not IMAGE_NAME_RE.match(path.name):
+            warnings.append(f"image name should be 01-cover.jpg style: {path.name}")
+        size = image_size(path)
+        if size and size[0] < 1600:
+            warnings.append(f"image width below 1600px: {path.name} ({size[0]}px)")
+
+    if images_dir.exists():
+        for image in images_dir.iterdir():
+            if image.is_file() and image.suffix.lower() in IMAGE_EXTS and not IMAGE_NAME_RE.match(image.name):
+                warnings.append(f"image name should be 01-cover.jpg style: images/{image.name}")
+
+    if EMU_RE.search(visible_html):
+        warnings.append("emoji-like characters found in HTML; use Lucide icons for slide UI")
+
+    return errors, warnings
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Validate a generated web PPT deck.")
+    parser.add_argument("index", help="Path to generated index.html.")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    index_path = Path(args.index).expanduser().resolve()
+    if not index_path.exists():
+        print(f"error: index.html not found: {index_path}", file=sys.stderr)
+        return 1
+    errors, warnings = validate(index_path)
+    for item in errors:
+        print(f"ERROR: {item}", file=sys.stderr)
+    for item in warnings:
+        print(f"WARN:  {item}")
+    if errors:
+        print(f"failed: {len(errors)} error(s), {len(warnings)} warning(s)", file=sys.stderr)
+        return 1
+    print(f"passed: 0 error(s), {len(warnings)} warning(s)")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

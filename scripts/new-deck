@@ -1,0 +1,226 @@
+#!/usr/bin/env python3
+"""Create a new Guizang-style web PPT deck from the bundled template."""
+
+from __future__ import annotations
+
+import argparse
+import re
+import sys
+from pathlib import Path
+
+
+THEMES = {
+    "ink": {
+        "label": "墨水经典",
+        "vars": {
+            "--ink": "#0a0a0b",
+            "--ink-rgb": "10,10,11",
+            "--paper": "#f1efea",
+            "--paper-rgb": "241,239,234",
+            "--paper-tint": "#e8e5de",
+            "--ink-tint": "#18181a",
+        },
+    },
+    "indigo": {
+        "label": "靛蓝瓷",
+        "vars": {
+            "--ink": "#0a1f3d",
+            "--ink-rgb": "10,31,61",
+            "--paper": "#f1f3f5",
+            "--paper-rgb": "241,243,245",
+            "--paper-tint": "#e4e8ec",
+            "--ink-tint": "#152a4a",
+        },
+    },
+    "forest": {
+        "label": "森林墨",
+        "vars": {
+            "--ink": "#1a2e1f",
+            "--ink-rgb": "26,46,31",
+            "--paper": "#f5f1e8",
+            "--paper-rgb": "245,241,232",
+            "--paper-tint": "#ece7da",
+            "--ink-tint": "#253d2c",
+        },
+    },
+    "kraft": {
+        "label": "牛皮纸",
+        "vars": {
+            "--ink": "#2a1e13",
+            "--ink-rgb": "42,30,19",
+            "--paper": "#eedfc7",
+            "--paper-rgb": "238,223,199",
+            "--paper-tint": "#e0d0b6",
+            "--ink-tint": "#3a2a1d",
+        },
+    },
+    "dune": {
+        "label": "沙丘",
+        "vars": {
+            "--ink": "#1f1a14",
+            "--ink-rgb": "31,26,20",
+            "--paper": "#f0e6d2",
+            "--paper-rgb": "240,230,210",
+            "--paper-tint": "#e3d7bf",
+            "--ink-tint": "#2d2620",
+        },
+    },
+}
+
+STARTER_SLIDES = """<section class="slide hero dark">
+  <div class="chrome">
+    <div class="left"><span>VOL.01</span><span class="sep"></span><span>WEB PPT</span></div>
+    <div class="right"><span>STARTER</span></div>
+  </div>
+  <div class="frame center">
+    <div class="kicker">MAGAZINE WEB PPT</div>
+    <h1 class="h-hero">替换标题</h1>
+    <p class="lead" style="max-width:56vw;margin-top:3vh">这里写一句能压住全场的开场判断。</p>
+  </div>
+  <div class="foot">
+    <span class="title">Deck Starter</span>
+    <span>01 / 03</span>
+  </div>
+</section>
+
+<section class="slide light">
+  <div class="chrome">
+    <div class="left"><span>CONTEXT</span><span class="sep"></span><span>WHY NOW</span></div>
+    <div class="right"><span>02</span></div>
+  </div>
+  <div class="frame grid-2-6-6" style="align-items:center">
+    <div class="col">
+      <div class="kicker">KEY POINT</div>
+      <h2 class="h-xl">把核心论点放在这里</h2>
+    </div>
+    <div class="col">
+      <p class="body-zh">用两到三句话解释背景、冲突和为什么现在值得听。正文保持短句,不要把整篇文章塞进一页。</p>
+      <div class="callout">
+        <span class="q-big">一页只承担一个观点。</span>
+        <span class="cite">DESIGN RULE</span>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <span class="title">Context</span>
+    <span>02 / 03</span>
+  </div>
+</section>
+
+<section class="slide hero light">
+  <div class="chrome">
+    <div class="left"><span>TAKEAWAY</span><span class="sep"></span><span>END</span></div>
+    <div class="right"><span>03</span></div>
+  </div>
+  <div class="frame center">
+    <div class="kicker">FINAL QUESTION</div>
+    <h2 class="h-xl">最后留下一个问题</h2>
+    <p class="lead" style="max-width:58vw;margin-top:3vh">把行动建议或下一步写成一句干净的话。</p>
+  </div>
+  <div class="foot">
+    <span class="title">Takeaway</span>
+    <span>03 / 03</span>
+  </div>
+</section>"""
+
+
+def repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def apply_title(html: str, title: str) -> str:
+    return re.sub(r"<title>.*?</title>", f"<title>{title}</title>", html, count=1, flags=re.S)
+
+
+def apply_theme(html: str, theme_key: str) -> str:
+    theme = THEMES[theme_key]
+    for name, value in theme["vars"].items():
+        html = re.sub(rf"(\s*{re.escape(name)}:)[^;]+;", rf"\g<1>{value};", html, count=1)
+    return html
+
+
+def apply_starter_slides(html: str, title: str) -> str:
+    slides = STARTER_SLIDES.replace("替换标题", title)
+    if "<!-- SLIDES_HERE -->" in html:
+        return html.replace("<!-- SLIDES_HERE -->", slides)
+    return html
+
+
+def build_brief(title: str, theme_key: str) -> str:
+    theme = THEMES[theme_key]
+    return f"""# {title}
+
+## Deck Brief
+
+- title: {title}
+- theme: {theme_key} / {theme["label"]}
+- image_dir: images/
+- image_naming: {{zero-padded-page}}-{{english-semantics}}.{{ext}}, e.g. 01-cover.jpg
+
+## Outline
+
+1. Hook
+2. Context
+3. Core point
+4. Shift
+5. Takeaway
+
+## Assets
+
+- Put images next to index.html under images/.
+- Photos: JPG.
+- Screenshots or text-heavy images: PNG.
+- Recommended width: >= 1600px.
+"""
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Create a new magazine-style web PPT deck.")
+    parser.add_argument("title", help="Deck title used in the HTML <title> and brief.")
+    parser.add_argument("output_dir", help="Directory to create or update with index.html and images/.")
+    parser.add_argument(
+        "--theme",
+        choices=sorted(THEMES),
+        default="ink",
+        help="Theme preset key. Defaults to ink.",
+    )
+    parser.add_argument("--force", action="store_true", help="Overwrite an existing index.html.")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    root = repo_root()
+    template_path = root / "assets" / "template.html"
+    if not template_path.exists():
+        print(f"error: template not found: {template_path}", file=sys.stderr)
+        return 1
+
+    out_dir = Path(args.output_dir).expanduser().resolve()
+    index_path = out_dir / "index.html"
+    if index_path.exists() and not args.force:
+        print(f"error: {index_path} already exists; pass --force to overwrite", file=sys.stderr)
+        return 1
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "images").mkdir(exist_ok=True)
+
+    html = template_path.read_text(encoding="utf-8")
+    html = apply_title(html, args.title)
+    html = apply_theme(html, args.theme)
+    html = apply_starter_slides(html, args.title)
+    index_path.write_text(html, encoding="utf-8")
+
+    brief_path = out_dir / "deck.brief.md"
+    if not brief_path.exists() or args.force:
+        brief_path.write_text(build_brief(args.title, args.theme), encoding="utf-8")
+
+    print(f"created: {index_path}")
+    print(f"created: {out_dir / 'images'}")
+    print(f"brief:   {brief_path}")
+    print(f"theme:   {args.theme} / {THEMES[args.theme]['label']}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

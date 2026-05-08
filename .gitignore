@@ -1,0 +1,11 @@
+excalidraw.log
+.DS_Store
+
+# Generated deck output
+output/
+dist/
+*.tmp
+
+# Python local cache
+__pycache__/
+*.pyc

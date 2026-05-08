@@ -13,8 +13,21 @@ An agent skill for Claude Code, Codex, and similar coding-agent environments. It
 - 📐 **Horizontal swipe navigation**: ← → arrows / scroll wheel / touch swipe / bottom dots / ESC for index
 - 🎨 **5 curated theme presets**: Ink Classic / Indigo Porcelain / Forest Ink / Kraft Paper / Dune
 - 🧩 **10 page layouts**: cover, act divider, big numbers, lead image + text, image grid, pipeline, hero question, big quote, before/after, image + text mix
-- 🖼 **Optional Codex image flow**: generate documentary photos, infographics, flow diagrams, system maps, and UI scenes with GPT-M 2.0, then insert them at template-safe ratios
+- 🖼 **Optional Codex image flow**: generate documentary photos, infographics, flow diagrams, system maps, and UI scenes with the image generation capability available in the current Codex session, then insert them at template-safe ratios
 - 📄 **Single HTML file** — no build, no server, open directly in the browser
+
+## Codex Quick Path
+
+```bash
+git clone https://github.com/op7418/guizang-ppt-skill.git ~/.codex/skills/guizang-ppt-skill
+cd ~/.codex/skills/guizang-ppt-skill
+scripts/new-deck "My Talk" ~/Desktop/my-deck --theme ink
+scripts/validate-deck ~/Desktop/my-deck/index.html
+```
+
+Theme keys are limited to these 5 presets: `ink`, `indigo`, `forest`, `kraft`, `dune`.
+
+Images must live in the `images/` folder next to `index.html`. Name them with a zero-padded page number plus English semantics, such as `01-cover.jpg`. Use JPG for photos, PNG for screenshots or text-heavy UI images, and aim for >= 1600px width.
 
 ## Fits / Doesn't fit
 
@@ -24,13 +37,22 @@ An agent skill for Claude Code, Codex, and similar coding-agent environments. It
 
 ## Install
 
-### Option 1: One-line install (recommended)
+### Option 1: Codex manual install
+
+```bash
+git clone https://github.com/op7418/guizang-ppt-skill.git ~/.codex/skills/guizang-ppt-skill
+ls ~/.codex/skills/guizang-ppt-skill
+```
+
+You should see `SKILL.md`, `assets/`, `references/`, and `scripts/`.
+
+### Option 2: Claude Code one-line install
 
 ```bash
 npx skills add https://github.com/op7418/guizang-ppt-skill --skill guizang-ppt-skill
 ```
 
-### Option 2: Paste this to an AI
+### Option 3: Paste this to an AI
 
 > Install the `guizang-ppt-skill` Claude Code skill for me. Steps:
 >
@@ -41,7 +63,7 @@ npx skills add https://github.com/op7418/guizang-ppt-skill --skill guizang-ppt-s
 
 Paste the block above into Claude Code / Cursor / any AI agent with shell access and it handles the install.
 
-### Option 3: Manual CLI
+### Option 4: Claude Code manual CLI
 
 ```bash
 git clone https://github.com/op7418/guizang-ppt-skill.git ~/.claude/skills/guizang-ppt-skill
@@ -61,18 +83,19 @@ Once installed, Claude Code auto-detects the skill. Trigger phrases:
 The skill is a structured workflow; the agent walks you through each step:
 
 1. **Clarify intent** — 6-question checklist: audience, duration, source material, images, theme, hard constraints
-2. **Copy template** — `assets/template.html` → project folder, update `<title>`, swap theme vars
+2. **Create deck** — prefer `scripts/new-deck` to copy the template, update `<title>`, and apply theme vars
 3. **Fill content** — pick from 10 layout skeletons, paste, edit copy (with class-name pre-flight + theme rhythm plan)
-4. **Optional image generation** — in Codex, ask whether to use GPT-M 2.0 images, then insert them at page-appropriate ratios
+4. **Optional image generation** — in Codex, ask whether to use the current session's image generation capability, then insert assets at page-appropriate ratios
 5. **Self-check** — match against `references/checklist.md`; P0 issues must all pass
-6. **Preview** — open the HTML in a browser
-7. **Iterate** — use inline styles to tune font size, height, spacing
+6. **Script validation** — run `scripts/validate-deck path/to/index.html`
+7. **Preview** — open the HTML in a browser
+8. **Iterate** — use inline styles to tune font size, height, spacing
 
 Full spec in [`SKILL.md`](./SKILL.md).
 
 ## Codex Image Flow
 
-In Codex, after the first deck draft is ready, the agent can ask whether the user wants generated visuals. Once confirmed, choose an image type or style. Common types include:
+In Codex, if image generation is available in the current session, the agent can ask whether the user wants generated visuals after the first deck draft is ready. Once confirmed, choose an image type or style. Common types include:
 
 - Documentary photos: Fuji / Leica-like real-world scenes that add human texture
 - Infographics / flow diagrams / comparison charts / system maps: for concepts that cannot be explained well with photos
@@ -92,6 +115,9 @@ guizang-ppt-skill/
 ├── README.en.md          ← this file
 ├── assets/
 │   └── template.html     ← runnable seed HTML (CSS + WebGL + swipe JS pre-wired)
+├── scripts/
+│   ├── new-deck          ← create a new deck, update title, and apply theme
+│   └── validate-deck     ← validate title, theme classes, image paths, and naming
 └── references/
     ├── components.md     ← component catalog (type, color, grid, icons, callout, stat, pipeline)
     ├── layouts.md        ← 10 layout skeletons (paste-ready)
@@ -113,6 +139,12 @@ Pick from `references/themes.md`. **Custom hex values are not allowed** — prot
 | 🌙 Dune | art / design / creative / gallery |
 
 Switching themes only requires replacing the 6 variables at the top of `template.html`'s `:root{}` block — all other CSS flows through `var(--...)`.
+
+Or create a themed deck directly:
+
+```bash
+scripts/new-deck "Title" ./output/my-deck --theme indigo
+```
 
 ## Core design principles
 
